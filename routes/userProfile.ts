@@ -58,27 +58,35 @@ export function getUserProfile () {
         if (!code) {
           throw new Error('Username is null')
         }
-        const singleQuoteRegex = /^'(?:[^'\\]|\\.)*'$/
-        const doubleQuoteRegex = /^"(?:[^"\\]|\\.)*"$/
-        const backtickRegex = /^`(?:[^`\\$]|\\.|\$(?!{))*`$/
+        const singleQuoteRegex = /^'(?:[^'\\#!]|\\.|#(?!{)|!(?!{))*'$/
+        const doubleQuoteRegex = /^"(?:[^"\\#!]|\\.|#(?!{)|!(?!{))*"$/
+        const backtickRegex = /^`(?:[^`\\$#!]|\\.|\$(?!{)|#(?!{)|!(?!{))*`$/
         const numericRegex = /^-?\d+(?:\.\d+)?$/
         const booleanRegex = /^(?:true|false|null|undefined)$/
 
-        const isSafe = singleQuoteRegex.test(code) ||
+        const isSafe = (singleQuoteRegex.test(code) ||
           doubleQuoteRegex.test(code) ||
           backtickRegex.test(code) ||
           numericRegex.test(code) ||
-          booleanRegex.test(code)
+          booleanRegex.test(code)) &&
+          !code.includes('#{') &&
+          !code.includes('!{') &&
+          !/\\(?:x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4}|u\{[0-9a-fA-F]+\})/i.test(code)
 
         if (!isSafe) {
           throw new Error('Unsafe code execution blocked')
         }
-        username = eval(code) // eslint-disable-line no-eval
+        const evaluated = eval(code) // eslint-disable-line no-eval
+        const evaluatedStr = String(evaluated)
+        if (evaluatedStr.includes('#{') || evaluatedStr.includes('!{')) {
+          throw new Error('Unsafe code execution blocked')
+        }
+        username = evaluatedStr
       } catch (err) {
-        username = '\\' + username
+        username = '\\' + (user.username ? user.username.replace(/([#!]{)/g, '\\$1') : user.username)
       }
     } else {
-      username = '\\' + username
+      username = '\\' + (user.username ? user.username.replace(/([#!]{)/g, '\\$1') : user.username)
     }
 
     const themeKey = config.get<string>('application.theme') as keyof typeof themes
